@@ -1,0 +1,6 @@
+settings.local.json
+test/
+
+# .NET build artifacts (e.g. from verifying the eval fixtures locally)
+**/bin/
+**/obj/

@@ -1,0 +1,60 @@
+{
+  "skill_name": "migrate-to-awesome-assertions",
+  "evals": [
+    {
+      "id": 0,
+      "name": "basic-v6-migration",
+      "prompt": "Our company can't stay on FluentAssertions because of the new Xceed commercial licensing, so we're moving to AwesomeAssertions. Please migrate the xunit test project InventoryApp.Tests (in this directory) from FluentAssertions 6.12 to the latest AwesomeAssertions. When you're done the project must build cleanly and all tests must pass.",
+      "expected_output": "Project references latest AwesomeAssertions (no FluentAssertions package), namespaces renamed to AwesomeAssertions, renamed APIs fixed (HaveCountGreaterOrEqualTo -> HaveCountGreaterThanOrEqualTo, BeLessOrEqualTo -> BeLessThanOrEqualTo, EquivalencyAssertionOptions -> EquivalencyOptions, RespectingRuntimeTypes -> PreferringRuntimeMemberTypes, ExcludingNestedObjects -> WithoutRecursing, AssertionOptions -> AssertionConfiguration.Current), builds with 0 errors, all 9 tests pass.",
+      "files": [
+        "evals/fixtures/basic-v6"
+      ],
+      "assertions": [
+        "No FluentAssertions package reference remains in any project file",
+        "Project references the AwesomeAssertions NuGet package, major version 9 or later",
+        "No FluentAssertions identifier remains anywhere in the C# sources (usings, fully-qualified names, global usings)",
+        "dotnet build succeeds with 0 errors",
+        "dotnet test discovers 9 tests and all 9 pass (none removed, renamed away, or skipped)",
+        "Removed v7 API names are gone: HaveCountGreaterOrEqualTo, HaveCountLessOrEqualTo, BeGreaterOrEqualTo, BeLessOrEqualTo, EquivalencyAssertionOptions, RespectingRuntimeTypes, ExcludingNestedObjects, AssertionOptions",
+        "Test semantics preserved: every original assertion still checks the same condition (nothing deleted or weakened to force a pass)"
+      ]
+    },
+    {
+      "id": 1,
+      "name": "custom-assertions-v7-migration",
+      "prompt": "We're replacing FluentAssertions 7 with AwesomeAssertions (latest) in ShippingService.Tests (in this directory). The tricky part: we have our own custom assertion classes built on the FluentAssertions extensibility API - ShipmentAssertions, a StringAssertions extension, a custom value formatter and a custom equivalency step. Migrate the whole project including those custom assertions. All existing tests must still pass afterwards.",
+      "expected_output": "Project references latest AwesomeAssertions, namespaces renamed, custom assertions rewritten on the AssertionChain API (no Execute.Assertion left, constructors thread AssertionChain, WithExpectation nested lambda instead of ClearExpectation, AndWhichConstraint receives the chain, IEquivalencyStep uses IValidateChildNodeEquivalency / EquivalencyProven, AssertionOptions.EquivalencyPlan -> AssertionConfiguration.Current.Equivalency.Plan), builds with 0 errors, all 9 tests pass.",
+      "files": [
+        "evals/fixtures/custom-assertions-v7"
+      ],
+      "assertions": [
+        "No FluentAssertions package reference remains; AwesomeAssertions major version 9+ is referenced",
+        "dotnet build succeeds with 0 errors",
+        "dotnet test discovers 9 tests and all 9 pass",
+        "No Execute.Assertion calls remain anywhere",
+        "Custom assertion classes thread AssertionChain: Should() calls AssertionChain.GetOrCreate() and the constructor passes the chain to base",
+        "WithExpectation uses the nested-lambda form and ClearExpectation is gone",
+        "ContainItem returns AndWhichConstraint constructed WITH the assertion chain (not the 2-argument v7 form)",
+        "Equivalency step uses the IValidateChildNodeEquivalency parameter type and EquivalencyResult.EquivalencyProven, and is registered via AssertionConfiguration.Current.Equivalency.Plan",
+        "Test semantics preserved: no assertion deleted or weakened to force a pass"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "fa8-central-packages-rename",
+      "prompt": "we're on FluentAssertions 8.10 and don't want to pay for the Xceed license, so switch us over to the latest AwesomeAssertions. this solution (in this directory) uses central package management via Directory.Packages.props. there's a shared TestKit class library with custom assertions and the ApiClient.Tests test project. everything should build and the tests should pass when you're done",
+      "expected_output": "Directory.Packages.props references latest AwesomeAssertions instead of FluentAssertions, both projects' namespaces renamed FluentAssertions -> AwesomeAssertions (the v8-style AssertionChain code needs no structural changes), builds with 0 errors, all 5 tests pass.",
+      "files": [
+        "evals/fixtures/fa8-central-packages"
+      ],
+      "assertions": [
+        "Directory.Packages.props references AwesomeAssertions (latest) and contains no FluentAssertions entry",
+        "Both projects build with 0 errors",
+        "dotnet test discovers 5 tests and all 5 pass",
+        "No FluentAssertions identifier remains in any source or project file",
+        "Migration is minimal: the v8-style AssertionChain code was only namespace-renamed, not structurally rewritten",
+        "Test semantics preserved: no assertion deleted or weakened to force a pass"
+      ]
+    }
+  ]
+}
