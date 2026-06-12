@@ -55,6 +55,46 @@
         "Migration is minimal: the v8-style AssertionChain code was only namespace-renamed, not structurally rewritten",
         "Test semantics preserved: no assertion deleted or weakened to force a pass"
       ]
+    },
+    {
+      "id": 3,
+      "name": "legacy-v5-multiproject",
+      "prompt": "This solution is stuck on FluentAssertions 5.10.3 and .NET 5, and we need off FluentAssertions for licensing reasons. Migrate all three projects (LabelKit, TestSupport, LabelKit.Tests - in this directory) to the latest AwesomeAssertions, and since .NET 5 is long out of support, retarget the net5.0/net50 projects to net8.0 while you're at it. Watch out: we have a custom assertions class for our label tokens plus a shared assertion extension in TestSupport, both built on the old FluentAssertions internals. Everything must build and all tests must pass at the end.",
+      "expected_output": "All projects reference latest AwesomeAssertions (no FluentAssertions), namespaces renamed, test/support projects retargeted to net8.0 (including the 'net50' typo TFM), v5-style custom assertions rewritten on AssertionChain (Subject assignment via base ctor, Execute.Assertion gone, ObjectAssertions extension uses CurrentAssertionChain), v5 renames applied (BeGreaterOrEqualTo -> BeGreaterThanOrEqualTo etc.), builds 0 errors, all 6 tests pass.",
+      "files": [
+        "evals/fixtures/legacy-v5-solution"
+      ],
+      "assertions": [
+        "No FluentAssertions package reference remains; TestSupport and LabelKit.Tests reference AwesomeAssertions major version 9+",
+        "Legacy TFMs are gone: no net5.0 or net50 remains; test and support projects target net8.0",
+        "All projects build with 0 errors",
+        "dotnet test discovers 6 tests and all 6 pass",
+        "No Execute.Assertion calls remain anywhere",
+        "LabelTokenAssertions threads AssertionChain (GetOrCreate in Should(), chain passed to base ctor instead of v5-style Subject assignment)",
+        "The shared ObjectAssertions extension obtains the chain via CurrentAssertionChain (or equivalent), not a static entry point",
+        "Renamed APIs adopted: no BeGreaterOrEqualTo / BeLessOrEqualTo remain",
+        "No FluentAssertions identifier remains in sources or project files",
+        "Test semantics preserved: every original assertion still checks the same condition (nothing deleted or weakened to force a pass)"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "sensor-v5-wrapper-class",
+      "prompt": "migrate SensorFeed.Tests (in this directory) from FluentAssertions 5.10.3 to the latest AwesomeAssertions. also bump the project from net5.0 to net8.0, .net 5 isn't even installed on our build agents anymore. heads up: there's a WindowCheck helper class that calls into FluentAssertions internals (Execute.Assertion with Then-chaining), and the tests use the fluent date helpers (21.March(2024) etc). all tests must pass when you're done",
+      "expected_output": "Project references latest AwesomeAssertions, net8.0 target, WindowCheck rewritten on AssertionChain (Execute.Assertion gone, Then-chaining preserved), fluent date extensions keep working via AwesomeAssertions.Extensions, BeGreaterOrEqualTo/BeLessOrEqualTo renamed, builds 0 errors, all 6 tests pass.",
+      "files": [
+        "evals/fixtures/sensor-v5-feed"
+      ],
+      "assertions": [
+        "No FluentAssertions package reference remains; AwesomeAssertions major version 9+ is referenced",
+        "Project targets net8.0 (no net5.0 remains)",
+        "dotnet build succeeds with 0 errors",
+        "dotnet test discovers 6 tests and all 6 pass",
+        "No Execute.Assertion calls remain; WindowCheck uses AssertionChain",
+        "Renamed APIs adopted: no BeGreaterOrEqualTo / BeLessOrEqualTo remain",
+        "No FluentAssertions identifier remains in sources or project files (fluent dates via AwesomeAssertions.Extensions)",
+        "Test semantics preserved: every original assertion still checks the same condition (nothing deleted or weakened to force a pass)"
+      ]
     }
   ]
 }

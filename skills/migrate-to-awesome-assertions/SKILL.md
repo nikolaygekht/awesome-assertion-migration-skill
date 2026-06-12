@@ -23,8 +23,12 @@ Target the **latest AwesomeAssertions 9.x** unless the user says otherwise. Sinc
 everything is named `AwesomeAssertions` (namespaces, assembly); 9.0 was deliberately a
 rename-only release with no functional changes, so there is no reason to stop at 8.x.
 AwesomeAssertions 9.x targets `net47`, `net6.0`, `net8.0`, `netstandard2.0/2.1` — the
-same reach as FluentAssertions 6/7 except .NET Core 2.x/3.x (which still work via
-netstandard2.0, just without a dedicated target).
+same reach as FluentAssertions 6/7 except .NET Core 2.x/3.x and .NET 5 (which still
+work via the netstandard targets, just without a dedicated one). Projects on
+end-of-life targets (`netcoreapp3.1`, `net5.0` — sometimes written as the legacy
+`net50` form) often combine this migration with a TFM bump; do that only when the user
+asks for it, and expect the test infrastructure packages (`Microsoft.NET.Test.Sdk`,
+runners) to need a version bump along with the TFM.
 
 ## Step 1: Inventory the project
 

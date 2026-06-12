@@ -26,8 +26,10 @@ TEST_PROJECT = {
     0: "InventoryApp.Tests",
     1: "ShippingService.Tests",
     2: "ApiClient.Tests",
+    3: "LabelKit.Tests",
+    4: "SensorFeed.Tests",
 }[EVAL_ID]
-EXPECTED_TESTS = {0: 9, 1: 9, 2: 5}[EVAL_ID]
+EXPECTED_TESTS = {0: 9, 1: 9, 2: 5, 3: 6, 4: 6}[EVAL_ID]
 
 
 def sh(cmd, cwd=None, timeout=600):
@@ -177,6 +179,47 @@ if EVAL_ID == 2:
     exps.append(expectation(
         "Migration is minimal: the v8-style AssertionChain code was only namespace-renamed, not structurally rewritten",
         not diffs, "\n".join(diffs) or "sources identical modulo namespace rename"))
+
+if EVAL_ID in (3, 4):
+    legacy_tfm = grep(r"<TargetFramework>net5\.?0?</TargetFramework>", PROJECT, exts=(".csproj",))
+    net8 = grep(r"<TargetFramework>net8\.0</TargetFramework>", PROJECT, exts=(".csproj",))
+    exps.append(expectation(
+        "Legacy TFMs are gone: projects retargeted from net5.0/net50 to net8.0",
+        not legacy_tfm and bool(net8),
+        f"legacy TFMs: {legacy_tfm or 'none'} | net8.0 targets: {len(net8)}"))
+
+    execs = grep(r"Execute\s*\.\s*Assertion", PROJECT)
+    exps.append(expectation("No Execute.Assertion calls remain anywhere",
+                            not execs, "\n".join(execs[:10]) or "clean"))
+
+    old_cmp = grep(r"\bBeGreaterOrEqualTo\b|\bBeLessOrEqualTo\b", PROJECT)
+    exps.append(expectation("Renamed APIs adopted: no BeGreaterOrEqualTo / BeLessOrEqualTo remain",
+                            not old_cmp, "\n".join(old_cmp[:10]) or "clean"))
+
+if EVAL_ID == 3:
+    chain_should = grep(r"AssertionChain\.GetOrCreate", PROJECT)
+    base_chain = grep(r"base\([^)]*,\s*\w*[Cc]hain\)", PROJECT)
+    subject_assign = grep(r"^\s*Subject\s*=", PROJECT)
+    exps.append(expectation(
+        "LabelTokenAssertions threads AssertionChain: GetOrCreate in Should(), chain passed to base ctor "
+        "(no v5-style 'Subject = ...' assignment)",
+        bool(chain_should) and bool(base_chain) and not subject_assign,
+        f"GetOrCreate: {bool(chain_should)}, base(..., chain): {bool(base_chain)}, "
+        f"Subject assignment leftovers: {subject_assign or 'none'}"))
+
+    current_chain = grep(r"CurrentAssertionChain", PROJECT / "TestSupport")
+    exps.append(expectation(
+        "The shared ObjectAssertions extension obtains the chain via CurrentAssertionChain (or equivalent)",
+        bool(current_chain),
+        "\n".join(current_chain[:3]) or "CurrentAssertionChain not found in TestSupport"))
+
+if EVAL_ID == 4:
+    wc = PROJECT / TEST_PROJECT / "WindowCheck.cs"
+    wc_text = wc.read_text() if wc.exists() else ""
+    exps.append(expectation(
+        "WindowCheck uses AssertionChain instead of Execute.Assertion",
+        "AssertionChain" in wc_text and "Execute" not in wc_text,
+        (wc_text[:400] if wc_text else "WindowCheck.cs not found (renamed or deleted?)")))
 
 # --- judgment assertion placeholder ---
 exps.append(expectation(

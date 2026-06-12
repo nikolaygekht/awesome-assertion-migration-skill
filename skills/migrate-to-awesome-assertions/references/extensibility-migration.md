@@ -115,6 +115,15 @@ The mechanical rules:
 3. Replace every `Execute.Assertion` with the stored chain field. Then delete the
    now-unused `Execute` reference; the class no longer exists.
 
+**Coming from v5:** assertion classes typically didn't call a base constructor at all —
+they assigned the subject directly (`public FooAssertions(Foo instance) { Subject =
+instance; }`). `Subject` no longer has an accessible setter; that assignment must
+become the `base(instance, chain)` call shown above. Plain wrapper classes that are
+*not* derived from any assertions base class but call `Execute.Assertion` directly
+(a common v5-era pattern) get a local chain instead: call
+`AssertionChain.GetOrCreate()` at the start of each public check method (here a fresh
+chain per method is correct — there is no `Should()` entry point to share it from).
+
 ## Pattern 2: Extension method on a built-in assertions class
 
 You don't control the constructor, so use the chain the class was created with — every
