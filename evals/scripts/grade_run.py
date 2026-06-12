@@ -28,8 +28,10 @@ TEST_PROJECT = {
     2: "ApiClient.Tests",
     3: "LabelKit.Tests",
     4: "SensorFeed.Tests",
+    5: "PricingEngine.Tests",
+    6: "RouteKit.Tests",
 }[EVAL_ID]
-EXPECTED_TESTS = {0: 9, 1: 9, 2: 5, 3: 6, 4: 6}[EVAL_ID]
+EXPECTED_TESTS = {0: 9, 1: 9, 2: 5, 3: 6, 4: 6, 5: 14, 6: 13}[EVAL_ID]
 
 
 def sh(cmd, cwd=None, timeout=600):
@@ -68,6 +70,19 @@ if EVAL_ID == 2:
         "Directory.Packages.props references AwesomeAssertions (latest) and contains no FluentAssertions entry",
         bool(pkg_aa) and not pkg_fa,
         f"FluentAssertions refs: {pkg_fa or 'none'} | AwesomeAssertions refs: {pkg_aa or 'none'}"))
+elif EVAL_ID in (5, 6):
+    # classic-assertion conversion: AA gets added, the test framework packages must remain
+    versions = re.findall(r'AwesomeAssertions"\s+Version="(\d+)', "\n".join(
+        p.read_text() for p in source_files(PROJECT, (".csproj", ".props"))))
+    aa9 = any(int(v) >= 9 for v in versions)
+    fw_pkg = (grep(r'Include="NUnit"', PROJECT, exts=(".csproj", ".props"))
+              if EVAL_ID == 5 else
+              grep(r'Include="xunit"', PROJECT, exts=(".csproj", ".props")))
+    exps.append(expectation(
+        "Project references AwesomeAssertions major version 9+ and keeps the "
+        + ("NUnit framework and test-adapter packages" if EVAL_ID == 5 else "xunit packages"),
+        bool(versions) and aa9 and bool(fw_pkg),
+        f"AA versions: {versions} | framework pkg refs: {fw_pkg or 'MISSING'}"))
 else:
     exps.append(expectation(
         "No FluentAssertions package reference remains in any project file",
@@ -82,12 +97,13 @@ else:
         bool(versions) and aa9,
         f"versions found: {versions}"))
 
-# --- no FluentAssertions identifier in sources ---
-src_fa = grep(r"FluentAssertions", PROJECT, exts=(".cs",))
-exps.append(expectation(
-    "No FluentAssertions identifier remains in the C# sources",
-    not src_fa,
-    "\n".join(src_fa[:10]) or "clean"))
+# --- no FluentAssertions identifier in sources (FA-migration evals only) ---
+if EVAL_ID not in (5, 6):
+    src_fa = grep(r"FluentAssertions", PROJECT, exts=(".cs",))
+    exps.append(expectation(
+        "No FluentAssertions identifier remains in the C# sources",
+        not src_fa,
+        "\n".join(src_fa[:10]) or "clean"))
 
 # --- build ---
 build_dirs = [PROJECT / TEST_PROJECT]
@@ -220,6 +236,80 @@ if EVAL_ID == 4:
         "WindowCheck uses AssertionChain instead of Execute.Assertion",
         "AssertionChain" in wc_text and "Execute" not in wc_text,
         (wc_text[:400] if wc_text else "WindowCheck.cs not found (renamed or deleted?)")))
+
+if EVAL_ID == 5:
+    nunit_asserts = grep(
+        r"Assert\.(That|AreEqual|AreNotEqual|AreSame|AreNotSame|IsTrue|IsFalse|True\b|False\b"
+        r"|IsNull|IsNotNull|Null\b|NotNull\b|IsEmpty|IsNotEmpty|Greater|GreaterOrEqual|Less"
+        r"|LessOrEqual|Positive|Negative|Zero|NotZero|IsInstanceOf|IsNotInstanceOf|Contains"
+        r"|Throws|Catch|DoesNotThrow|ThrowsAsync|DoesNotThrowAsync|Multiple)"
+        r"|CollectionAssert\.|StringAssert\.|ClassicAssert\.", PROJECT)
+    exps.append(expectation(
+        "No NUnit assertion calls remain: no Assert.That / classic Assert.* comparisons, "
+        "CollectionAssert, or StringAssert in the sources",
+        not nunit_asserts, "\n".join(nunit_asserts[:10]) or "clean"))
+
+    attrs = grep(r"\[(Test|TestFixture)\]", PROJECT)
+    using_nunit = grep(r"using NUnit\.Framework;", PROJECT)
+    exps.append(expectation(
+        "NUnit remains the runner: [Test]/[TestFixture] attributes and using NUnit.Framework retained",
+        bool(attrs) and bool(using_nunit),
+        f"[Test]/[TestFixture]: {len(attrs)} | using NUnit.Framework: {len(using_nunit)}"))
+
+    exact = grep(r"ThrowExactly(Async)?<(FormatException|ArgumentException|InvalidOperationException)>", PROJECT)
+    derived = grep(r"\bThrow<", PROJECT)  # plain Throw< (Assert.Catch / Throws.InstanceOf sites)
+    exps.append(expectation(
+        "Exception strictness preserved: exact-type asserts (Assert.Throws, Throws.TypeOf, "
+        "Throws.ArgumentException) became ThrowExactly while derived-allowed asserts "
+        "(Assert.Catch, Throws.InstanceOf) became Throw",
+        bool(exact) and bool(derived),
+        f"ThrowExactly sites: {len(exact)} | plain Throw< sites: {len(derived)}"))
+
+    scope = grep(r"AssertionScope", PROJECT)
+    exps.append(expectation(
+        "Assert.Multiple blocks converted to AssertionScope",
+        bool(scope), "\n".join(scope[:3]) or "AssertionScope not found"))
+
+    approx = grep(r"BeApproximately", PROJECT)
+    exps.append(expectation(
+        "Numeric tolerance asserts (AreEqual with delta, Is.EqualTo().Within()) became BeApproximately",
+        bool(approx), "\n".join(approx[:5]) or "BeApproximately not found"))
+
+if EVAL_ID == 6:
+    xunit_asserts = grep(
+        r"Assert\.(Equal|NotEqual|StrictEqual|True\b|False\b|Null\b|NotNull\b|Same|NotSame"
+        r"|Empty|NotEmpty|Single|Contains|DoesNotContain|StartsWith|EndsWith|Matches"
+        r"|DoesNotMatch|InRange|NotInRange|IsType|IsNotType|IsAssignableFrom|Throws|ThrowsAny"
+        r"|ThrowsAsync|ThrowsAnyAsync|All\b|Collection|Equivalent|Distinct|Subset|Superset|Raises)",
+        PROJECT)
+    exps.append(expectation(
+        "No xUnit Assert.* assertion calls remain in the sources",
+        not xunit_asserts, "\n".join(xunit_asserts[:10]) or "clean"))
+
+    attrs = grep(r"\[(Fact|Theory|InlineData)", PROJECT)
+    using_xunit = grep(r"using Xunit;", PROJECT)
+    exps.append(expectation(
+        "xUnit remains the runner: [Fact]/[Theory]/[InlineData] attributes and using Xunit retained",
+        bool(attrs) and bool(using_xunit),
+        f"[Fact]/[Theory]/[InlineData]: {len(attrs)} | using Xunit: {len(using_xunit)}"))
+
+    exact = grep(r"ThrowExactly<ArgumentException>", PROJECT)
+    exact_async = grep(r"await .*ThrowExactlyAsync<InvalidOperationException>", PROJECT)
+    any_derived = grep(r"\bThrow<", PROJECT)  # Assert.ThrowsAny site
+    exps.append(expectation(
+        "Exception strictness preserved: Assert.Throws/ThrowsAsync became ThrowExactly/"
+        "ThrowExactlyAsync (awaited), Assert.ThrowsAny became Throw",
+        bool(exact) and bool(exact_async) and bool(any_derived),
+        f"ThrowExactly: {len(exact)} | awaited ThrowExactlyAsync: {len(exact_async)} | plain Throw<: {len(any_derived)}"))
+
+    satisfy = grep(r"SatisfyRespectively", PROJECT)
+    allsat = grep(r"AllSatisfy", PROJECT)
+    single = grep(r"ContainSingle", PROJECT)
+    exps.append(expectation(
+        "Structured asserts converted faithfully: Assert.Collection -> SatisfyRespectively, "
+        "Assert.All -> AllSatisfy, Assert.Single -> ContainSingle",
+        bool(satisfy) and bool(allsat) and bool(single),
+        f"SatisfyRespectively: {len(satisfy)} | AllSatisfy: {len(allsat)} | ContainSingle: {len(single)}"))
 
 # --- judgment assertion placeholder ---
 exps.append(expectation(

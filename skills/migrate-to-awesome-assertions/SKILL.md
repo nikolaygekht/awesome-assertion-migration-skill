@@ -1,23 +1,35 @@
 ---
 name: migrate-to-awesome-assertions
 description: >
-  Migrate .NET test projects from FluentAssertions to AwesomeAssertions, the free
-  Apache-2.0 community fork. Use this skill whenever the user mentions FluentAssertions
-  licensing/Xceed costs, AwesomeAssertions, replacing or removing FluentAssertions,
-  upgrading assertion libraries in C#/.NET test code, or fixing custom assertion
-  extensions that broke (e.g. Execute.Assertion no longer exists, AssertionChain errors).
-  Covers migration from any FluentAssertions version (v5/v6/v7 and v8) including the
+  Migrate .NET test projects to AwesomeAssertions (the free Apache-2.0 fluent-assertion
+  library) — from FluentAssertions or from NUnit/xUnit built-in assertions. Use this
+  skill whenever the user mentions FluentAssertions licensing/Xceed costs,
+  AwesomeAssertions, replacing or removing FluentAssertions, upgrading assertion
+  libraries in C#/.NET test code, fixing custom assertion extensions that broke
+  (e.g. Execute.Assertion no longer exists, AssertionChain errors), or converting
+  classic test assertions (Assert.AreEqual, Assert.That, Assert.Equal,
+  CollectionAssert, StringAssert) to fluent Should()-style assertions. Covers
+  migration from any FluentAssertions version (v5/v6/v7 and v8) including the
   extensibility API rewrite (Execute.Assertion → AssertionChain) and the v9 namespace
-  rename (FluentAssertions → AwesomeAssertions).
+  rename (FluentAssertions → AwesomeAssertions), plus NUnit classic-model,
+  NUnit constraint-model (Assert.That) and xUnit Assert conversions.
 ---
 
-# Migrate from FluentAssertions to AwesomeAssertions
+# Migrate to AwesomeAssertions
 
 FluentAssertions 8.0 (January 2025) moved to a paid Xceed license for commercial use.
 AwesomeAssertions is the community fork that continues the library under the free
 Apache-2.0 license. It tracks the FluentAssertions 8 API, so a migration is mostly
 mechanical — but the amount of work depends on which FluentAssertions version the
 project is coming from, and whether it defines custom assertions.
+
+This skill covers two source styles, which can coexist in one project:
+
+- **From FluentAssertions** (any version) → Steps 2–5
+- **From NUnit/xUnit built-in assertions** (`Assert.AreEqual`, `Assert.That`,
+  `Assert.Equal`, `CollectionAssert`, `StringAssert`, …) → Step 6
+
+Both end with the same verification (Step 7).
 
 Target the **latest AwesomeAssertions 9.x** unless the user says otherwise. Since 9.0,
 everything is named `AwesomeAssertions` (namespaces, assembly); 9.0 was deliberately a
@@ -43,9 +55,12 @@ grep -rln --include="*.cs" "FluentAssertions" .
 
 # Does the project define custom assertions (the part that needs real rewriting)?
 grep -rln --include="*.cs" -E "Execute\.Assertion|ReferenceTypeAssertions|IValueFormatter|IEquivalencyStep|AssertionOptions\." .
+
+# Are NUnit/xUnit built-in assertions in use (instead of, or alongside, FluentAssertions)?
+grep -rln --include="*.cs" -E "Assert\.(That|Are[A-Z]|Is[A-Z]|Equal|NotEqual|True|False|Null|NotNull|Throws|Contains|Single|Collection|Multiple)|CollectionAssert\.|StringAssert\.|ClassicAssert\." . | grep -v bin/ | grep -v obj/
 ```
 
-Record three facts; they determine the migration path:
+Record four facts; they determine the migration path:
 
 1. **Source version** (from the package reference):
    - **v8.x** → easiest path: AwesomeAssertions 8.x is API-identical to FluentAssertions 8.x,
@@ -56,7 +71,14 @@ Record three facts; they determine the migration path:
    classes means Step 5 applies.
 3. **Companion packages** — they must be swapped together with the main package (Step 2),
    and watch for *transitive* FluentAssertions references from third-party test libraries
-   (see Step 6).
+   (see Step 7).
+4. **NUnit/xUnit built-in assertions present?** If the project uses classic asserts —
+   whether it has FluentAssertions at all or not — Step 6 applies. If there is no
+   FluentAssertions reference, skip Steps 2–5 entirely: just add the
+   `AwesomeAssertions` package (keep the test-framework packages — NUnit/xUnit remain
+   the runner) and go to Step 6. Ask the user first only when they requested a
+   FluentAssertions migration and the classic asserts are merely incidental — converting
+   those too may be unwanted scope.
 
 ## Step 2: Swap the NuGet packages
 
@@ -140,7 +162,29 @@ for verified before/after templates covering:
 - `AssertionScope` (what stayed, what moved to `AssertionChain`)
 - `IValueFormatter`, `IEquivalencyStep`, and global configuration hooks
 
-## Step 6: Build, test, and verify nothing FluentAssertions remains
+## Step 6: Convert NUnit/xUnit built-in assertions (only when the project uses them)
+
+Converting classic asserts to fluent style is a per-call-site rewrite, and the danger
+is not compile errors but *silently changed test semantics*: expected/actual argument
+order inverts, exception asserts differ in type strictness (`Assert.Throws<T>` is
+exact-type → `ThrowExactly<T>`, not `Throw<T>`), and `WithMessage` matches wildcards
+rather than substrings. Read
+[references/classic-assertions-to-fluent.md](references/classic-assertions-to-fluent.md)
+for the verified mapping tables (xUnit `Assert.*`, NUnit classic + `CollectionAssert`/
+`StringAssert`, NUnit constraint model `Assert.That(..., Is/Has/Does/Throws...)`) and
+the cross-cutting gotchas before converting anything.
+
+Key points the reference expands on:
+
+- The test framework **stays** — only assertion calls change. Keep the NUnit/xUnit
+  packages, attributes, and runner directives (`Assert.Fail`, `Assert.Ignore`,
+  `Assert.Pass`, `Assume.That`); they have no fluent equivalent.
+- `Assert.Multiple` → `AssertionScope`; NUnit `Within` tolerances → `BeApproximately`;
+  returned values (`var ex = Assert.Throws…`) → `.Which`/`.Subject`.
+- Both styles coexist without conflict, so convert file-by-file with green tests
+  throughout.
+
+## Step 7: Build, test, and verify nothing old remains
 
 Iterate until clean:
 
@@ -161,6 +205,11 @@ grep -rn -i "fluentassertions" --include="*.cs" --include="*.csproj" --include="
 Both should come back empty. If a transitive reference remains, either find an
 AwesomeAssertions-based fork of the offending package or report it to the user as a
 known leftover with the licensing implication spelled out.
+
+For a classic-assertion conversion (Step 6), the completion check is different — some
+`Assert.*` calls legitimately remain (`Assert.Fail`, `Assert.Ignore`, attributes need
+`using NUnit.Framework;`/`using Xunit;`). Use the comparison-assert grep at the end of
+classic-assertions-to-fluent.md instead of a blanket "no Assert left" check.
 
 A test count comparison is a cheap, strong signal: the number of discovered and passed
 tests after migration must equal the number before. If tests fail after migration,

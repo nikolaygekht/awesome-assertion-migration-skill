@@ -4,3 +4,16 @@ test/
 # .NET build artifacts (e.g. from verifying the eval fixtures locally)
 **/bin/
 **/obj/
+**/TestResults/
+*.binlog
+*.user
+*.suo
+.vs/
+
+# NuGet
+*.nupkg
+packages/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db

@@ -95,6 +95,45 @@
         "No FluentAssertions identifier remains in sources or project files (fluent dates via AwesomeAssertions.Extensions)",
         "Test semantics preserved: every original assertion still checks the same condition (nothing deleted or weakened to force a pass)"
       ]
+    },
+    {
+      "id": 5,
+      "name": "nunit-to-fluent",
+      "prompt": "We're standardizing on fluent-style assertions across our test suites. Please convert PricingEngine.Tests (in this directory) from NUnit's built-in assertions - it uses both the classic Assert.AreEqual style and the Assert.That constraint style, plus CollectionAssert/StringAssert - to AwesomeAssertions. NUnit stays as the test framework, only the assertions should change. Don't weaken any test: every assertion must keep checking the same thing, and all 14 tests must still pass.",
+      "expected_output": "Project additionally references AwesomeAssertions 9+, NUnit + adapter packages remain, all NUnit assertion calls (classic, constraint model, CollectionAssert, StringAssert) replaced with Should()-style equivalents preserving semantics (ThrowExactly for exact-type throws, Throw for Catch/InstanceOf, AssertionScope for Assert.Multiple, BeApproximately for Within/delta tolerances), builds with 0 errors, all 14 tests pass.",
+      "files": [
+        "evals/fixtures/nunit-classic"
+      ],
+      "assertions": [
+        "Project references AwesomeAssertions major version 9+ and keeps the NUnit framework and test-adapter packages",
+        "dotnet build succeeds with 0 errors",
+        "dotnet test discovers 14 tests and all 14 pass",
+        "No NUnit assertion calls remain: no Assert.That / classic Assert.* comparisons, CollectionAssert, or StringAssert in the sources",
+        "NUnit remains the runner: [Test]/[TestFixture] attributes and using NUnit.Framework retained",
+        "Exception strictness preserved: exact-type asserts (Assert.Throws, Throws.TypeOf, Throws.ArgumentException) became ThrowExactly while derived-allowed asserts (Assert.Catch, Throws.InstanceOf) became Throw",
+        "Assert.Multiple blocks converted to AssertionScope",
+        "Numeric tolerance asserts (AreEqual with delta, Is.EqualTo().Within()) became BeApproximately",
+        "Test semantics preserved: subject/expected argument order correct everywhere, no assertion deleted or weakened to force a pass"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "xunit-to-fluent",
+      "prompt": "i'd like RouteKit.Tests (in this directory) moved off the plain xunit Assert.* calls onto AwesomeAssertions fluent syntax (the Should() style). keep xunit as the runner and keep [Fact]/[Theory] as they are. make sure the tests still check exactly the same things as before - all 13 must pass at the end",
+      "expected_output": "Project additionally references AwesomeAssertions 9+, xunit packages remain, all Assert.* calls replaced with Should()-style equivalents preserving semantics (ThrowExactly/ThrowExactlyAsync for Assert.Throws/ThrowsAsync, Throw for ThrowsAny, SatisfyRespectively for Assert.Collection, AllSatisfy for Assert.All, ContainSingle for Assert.Single, BeApproximately for precision equality), builds with 0 errors, all 13 tests pass.",
+      "files": [
+        "evals/fixtures/xunit-asserts"
+      ],
+      "assertions": [
+        "Project references AwesomeAssertions major version 9+ and keeps the xunit packages",
+        "dotnet build succeeds with 0 errors",
+        "dotnet test discovers 13 tests and all 13 pass",
+        "No xUnit Assert.* assertion calls remain in the sources",
+        "xUnit remains the runner: [Fact]/[Theory]/[InlineData] attributes and using Xunit retained",
+        "Exception strictness preserved: Assert.Throws/ThrowsAsync became ThrowExactly/ThrowExactlyAsync (awaited), Assert.ThrowsAny became Throw",
+        "Structured asserts converted faithfully: Assert.Collection -> SatisfyRespectively, Assert.All -> AllSatisfy, Assert.Single -> ContainSingle",
+        "Test semantics preserved: subject/expected argument order correct everywhere, no assertion deleted or weakened to force a pass"
+      ]
     }
   ]
 }
